@@ -1,0 +1,526 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>DevHub — Command Dashboard</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{ box-sizing:border-box; padding-top:env(safe-area-inset-top,0px); padding-bottom:env(safe-area-inset-bottom,0px); }
+  html{ scroll-padding-top:env(safe-area-inset-top,0px); }
+  *{box-sizing:border-box}
+  body{
+    font-family:'Inter',sans-serif;
+    background:#0a0e17;
+    color:#e5e7eb;
+    min-height:100%;
+    position:relative;
+    overflow-x:hidden;
+  }
+  .font-code{font-family:'Fira Code',monospace}
+
+  /* ambient glow blobs behind the glass */
+  .bg-blob{
+    position:fixed; border-radius:50%; filter:blur(90px); opacity:.35; z-index:0; pointer-events:none;
+    transition:background .5s ease;
+  }
+  #blob1{ width:520px; height:520px; top:-160px; left:-140px; background:var(--accent); }
+  #blob2{ width:420px; height:420px; bottom:-140px; right:-100px; background:var(--accent-hover); opacity:.22; }
+
+  .theme-cyan{ --accent:#06b6d4; --accent-hover:#22d3ee; --accent-rgb:6,182,212; }
+  .theme-emerald{ --accent:#10b981; --accent-hover:#34d399; --accent-rgb:16,185,129; }
+  .theme-violet{ --accent:#8b5cf6; --accent-hover:#a78bfa; --accent-rgb:139,92,246; }
+  .theme-orange{ --accent:#f97316; --accent-hover:#fb923c; --accent-rgb:249,115,22; }
+
+  .accent-text{color:var(--accent)}
+  .accent-bg{background-color:var(--accent)}
+  .accent-border:focus{border-color:var(--accent) !important; box-shadow:0 0 0 3px rgba(var(--accent-rgb),.15)}
+  .accent-hover:hover{border-color:var(--accent) !important; box-shadow:0 8px 24px -8px rgba(var(--accent-rgb),.35)}
+
+  /* refined glassmorphism */
+  .glass{
+    position:relative;
+    background:linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.02));
+    backdrop-filter:blur(20px) saturate(140%);
+    -webkit-backdrop-filter:blur(20px) saturate(140%);
+    border:1px solid rgba(255,255,255,0.09);
+    box-shadow:0 8px 32px -12px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.06);
+  }
+  .glass::before{
+    content:''; position:absolute; inset:0; border-radius:inherit; padding:1px;
+    background:linear-gradient(135deg, rgba(255,255,255,0.15), transparent 40%);
+    -webkit-mask:linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    -webkit-mask-composite:xor; mask-composite:exclude; pointer-events:none;
+  }
+  .glass-soft{
+    background:rgba(255,255,255,0.03);
+    backdrop-filter:blur(14px);
+    -webkit-backdrop-filter:blur(14px);
+    border:1px solid rgba(255,255,255,0.07);
+  }
+  ::-webkit-scrollbar{width:8px;height:8px}
+  ::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.12);border-radius:8px}
+  ::-webkit-scrollbar-thumb:hover{background:rgba(255,255,255,0.2)}
+  textarea:focus, input:focus{outline:none}
+  .tool-tab{
+    cursor:pointer; padding:.5rem .9rem; border-radius:.65rem; font-size:.78rem; font-weight:500;
+    color:#9ca3af; border:1px solid transparent; transition:all .15s ease; white-space:nowrap;
+  }
+  .tool-tab.active{ color:#0a0e17; background:var(--accent); }
+  .tool-tab:not(.active):hover{ border-color:rgba(255,255,255,0.12); color:#e5e7eb; }
+  .copy-btn{ font-size:.65rem; color:#9ca3af; border:1px solid rgba(255,255,255,.1); padding:.2rem .55rem; border-radius:.4rem; transition:.15s; }
+  .copy-btn:hover{ color:var(--accent); border-color:var(--accent); }
+  @media (prefers-reduced-motion: reduce){ * { transition:none !important; } }
+</style>
+</head>
+<body id="body-theme" class="theme-cyan">
+<div class="bg-blob" id="blob1"></div>
+<div class="bg-blob" id="blob2"></div>
+
+<div class="relative z-10 min-h-screen p-4 md:p-8 flex flex-col gap-6">
+
+  <!-- Header -->
+  <header class="max-w-6xl mx-auto w-full flex flex-col md:flex-row justify-between items-center gap-4">
+    <div>
+      <h1 class="text-2xl font-bold font-code accent-text flex items-center gap-2">
+        <span>⚡</span><span>DevHub</span>
+      </h1>
+      <p class="text-xs text-gray-500">Command dashboard &amp; developer toolbox</p>
+    </div>
+
+    <div class="w-full md:w-96">
+      <form id="search-form" class="glass rounded-xl flex items-center px-3 py-2">
+        <span class="text-gray-400 mr-2 text-sm">🔍</span>
+        <input type="text" id="search-input" placeholder="Search Google or paste a URL..." class="bg-transparent w-full text-sm text-gray-200 placeholder-gray-500 focus:outline-none">
+        <span class="text-[10px] text-gray-500 font-code border border-gray-700 px-1.5 py-0.5 rounded ml-1">↵</span>
+      </form>
+    </div>
+
+    <div class="flex items-center gap-3">
+      <div class="glass px-2.5 py-1.5 rounded-xl flex items-center gap-2">
+        <button onclick="setTheme('cyan')" class="w-3.5 h-3.5 rounded-full bg-cyan-500 hover:scale-125 transition-transform" title="Cyan"></button>
+        <button onclick="setTheme('emerald')" class="w-3.5 h-3.5 rounded-full bg-emerald-500 hover:scale-125 transition-transform" title="Emerald"></button>
+        <button onclick="setTheme('violet')" class="w-3.5 h-3.5 rounded-full bg-violet-500 hover:scale-125 transition-transform" title="Violet"></button>
+        <button onclick="setTheme('orange')" class="w-3.5 h-3.5 rounded-full bg-orange-500 hover:scale-125 transition-transform" title="Orange"></button>
+      </div>
+      <div class="glass px-4 py-2 rounded-xl text-sm">
+        <span id="live-clock" class="font-code accent-text">00:00:00</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- Row 1: Links + Scratchpad -->
+  <main class="max-w-6xl mx-auto w-full grid grid-cols-1 md:grid-cols-3 gap-6">
+    <section class="md:col-span-2 glass rounded-2xl p-6 flex flex-col justify-between">
+      <div>
+        <div class="flex justify-between items-center mb-4">
+          <h2 class="text-lg font-semibold flex items-center gap-2"><span>🔗</span>Quick Links</h2>
+          <span class="text-xs text-gray-500 font-code">pinned</span>
+        </div>
+        <div id="links-grid" class="grid grid-cols-2 sm:grid-cols-3 gap-4 mb-4"></div>
+      </div>
+      <form id="add-link-form" class="flex gap-2 pt-4 border-t border-white/5">
+        <input type="text" id="link-name" placeholder="Title" required class="glass-soft px-3 py-1.5 rounded-lg text-sm placeholder-gray-500 accent-border w-1/3">
+        <input type="url" id="link-url" placeholder="https://example.com" required class="glass-soft px-3 py-1.5 rounded-lg text-sm placeholder-gray-500 accent-border flex-1">
+        <button type="submit" class="accent-bg text-gray-950 font-semibold px-4 py-1.5 rounded-lg text-sm hover:opacity-90">+</button>
+      </form>
+    </section>
+
+    <section class="glass rounded-2xl p-6 flex flex-col justify-between">
+      <div>
+        <h2 class="text-lg font-semibold mb-4 flex items-center gap-2"><span>📝</span>Scratchpad</h2>
+        <textarea id="scratchpad" placeholder="Jot down quick thoughts or code..." class="glass-soft w-full h-44 p-3 rounded-xl text-sm placeholder-gray-500 accent-border resize-none font-code"></textarea>
+      </div>
+      <div class="flex justify-between items-center mt-2 text-xs text-gray-500">
+        <span id="save-status">Auto-saved</span>
+        <button id="clear-notes" class="hover:text-red-400 transition-colors">Clear</button>
+      </div>
+    </section>
+
+    <!-- GitHub repos -->
+    <section class="md:col-span-3 glass rounded-2xl p-6">
+      <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 gap-3">
+        <h2 class="text-lg font-semibold flex items-center gap-2"><span>🐙</span>GitHub Public Repositories</h2>
+        <form id="gh-form" class="flex gap-2 w-full sm:w-auto">
+          <input type="text" id="gh-username" placeholder="GitHub username..." class="glass-soft px-3 py-1.5 rounded-lg text-sm placeholder-gray-500 accent-border w-full sm:w-64">
+          <button type="submit" class="accent-bg text-gray-950 font-semibold px-4 py-1.5 rounded-lg text-sm hover:opacity-90">Fetch</button>
+        </form>
+      </div>
+      <div id="gh-repos-grid" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 text-sm">
+        <p class="text-xs text-gray-500 italic col-span-full">Enter a GitHub username to view public repositories.</p>
+      </div>
+    </section>
+
+    <!-- DEV TOOLBOX -->
+    <section class="md:col-span-3 glass rounded-2xl p-6">
+      <div class="flex justify-between items-center mb-4 flex-wrap gap-3">
+        <h2 class="text-lg font-semibold flex items-center gap-2"><span>🛠️</span>Dev Toolbox</h2>
+        <div id="tool-tabs" class="flex gap-2 flex-wrap">
+          <span class="tool-tab active" data-tool="json">JSON</span>
+          <span class="tool-tab" data-tool="b64">Base64</span>
+          <span class="tool-tab" data-tool="color">Color</span>
+          <span class="tool-tab" data-tool="regex">Regex</span>
+          <span class="tool-tab" data-tool="time">Timestamp</span>
+          <span class="tool-tab" data-tool="pass">Password</span>
+        </div>
+      </div>
+
+      <!-- JSON -->
+      <div class="tool-pane" id="pane-json">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <div class="flex justify-between items-center mb-1"><span class="text-xs text-gray-500">Input</span></div>
+            <textarea id="json-in" placeholder='{"hello":"world"}' class="glass-soft w-full h-40 p-3 rounded-xl text-xs font-code accent-border resize-none"></textarea>
+            <div class="flex gap-2 mt-2">
+              <button id="json-format" class="accent-bg text-gray-950 font-semibold px-3 py-1.5 rounded-lg text-xs">Format</button>
+              <button id="json-minify" class="glass-soft px-3 py-1.5 rounded-lg text-xs accent-hover">Minify</button>
+            </div>
+          </div>
+          <div>
+            <div class="flex justify-between items-center mb-1">
+              <span class="text-xs text-gray-500" id="json-status">Output</span>
+              <button class="copy-btn" data-copy="json-out">Copy</button>
+            </div>
+            <pre id="json-out" class="glass-soft w-full h-40 p-3 rounded-xl text-xs font-code overflow-auto whitespace-pre-wrap"></pre>
+          </div>
+        </div>
+      </div>
+
+      <!-- Base64 -->
+      <div class="tool-pane hidden" id="pane-b64">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <span class="text-xs text-gray-500">Plain text</span>
+            <textarea id="b64-plain" placeholder="Type text here..." class="glass-soft w-full h-32 p-3 rounded-xl text-xs font-code accent-border resize-none mt-1"></textarea>
+            <button id="b64-encode" class="accent-bg text-gray-950 font-semibold px-3 py-1.5 rounded-lg text-xs mt-2">Encode →</button>
+          </div>
+          <div>
+            <div class="flex justify-between items-center"><span class="text-xs text-gray-500">Base64</span><button class="copy-btn" data-copy="b64-encoded">Copy</button></div>
+            <textarea id="b64-encoded" placeholder="Base64 output / paste to decode" class="glass-soft w-full h-32 p-3 rounded-xl text-xs font-code accent-border resize-none mt-1"></textarea>
+            <button id="b64-decode" class="glass-soft px-3 py-1.5 rounded-lg text-xs accent-hover mt-2">← Decode</button>
+          </div>
+        </div>
+        <p id="b64-error" class="text-xs text-red-400 mt-2"></p>
+      </div>
+
+      <!-- Color -->
+      <div class="tool-pane hidden" id="pane-color">
+        <div class="flex flex-col md:flex-row gap-4 items-start">
+          <input type="color" id="color-picker" value="#06b6d4" class="w-20 h-20 rounded-xl border border-white/10 bg-transparent cursor-pointer">
+          <div class="flex-1 grid grid-cols-1 sm:grid-cols-3 gap-3 w-full">
+            <div>
+              <span class="text-xs text-gray-500">HEX</span>
+              <div class="flex gap-1 mt-1"><input id="color-hex" class="glass-soft px-2 py-1.5 rounded-lg text-xs font-code accent-border w-full"><button class="copy-btn" data-copy="color-hex">Copy</button></div>
+            </div>
+            <div>
+              <span class="text-xs text-gray-500">RGB</span>
+              <div class="flex gap-1 mt-1"><input id="color-rgb" readonly class="glass-soft px-2 py-1.5 rounded-lg text-xs font-code w-full"><button class="copy-btn" data-copy="color-rgb">Copy</button></div>
+            </div>
+            <div>
+              <span class="text-xs text-gray-500">HSL</span>
+              <div class="flex gap-1 mt-1"><input id="color-hsl" readonly class="glass-soft px-2 py-1.5 rounded-lg text-xs font-code w-full"><button class="copy-btn" data-copy="color-hsl">Copy</button></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Regex -->
+      <div class="tool-pane hidden" id="pane-regex">
+        <div class="flex gap-2 mb-3">
+          <input id="regex-pattern" placeholder="pattern e.g. \d+" class="glass-soft px-3 py-1.5 rounded-lg text-xs font-code accent-border flex-1">
+          <input id="regex-flags" placeholder="flags e.g. g" class="glass-soft px-3 py-1.5 rounded-lg text-xs font-code accent-border w-24">
+        </div>
+        <textarea id="regex-text" placeholder="Test string..." class="glass-soft w-full h-28 p-3 rounded-xl text-xs font-code accent-border resize-none"></textarea>
+        <p class="text-xs text-gray-500 mt-2">Matches: <span id="regex-count" class="accent-text font-code">0</span></p>
+        <div id="regex-out" class="glass-soft w-full mt-1 p-3 rounded-xl text-xs font-code max-h-32 overflow-auto"></div>
+      </div>
+
+      <!-- Timestamp -->
+      <div class="tool-pane hidden" id="pane-time">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <span class="text-xs text-gray-500">Unix timestamp (seconds)</span>
+            <div class="flex gap-2 mt-1">
+              <input id="ts-input" placeholder="e.g. 1735689600" class="glass-soft px-3 py-1.5 rounded-lg text-xs font-code accent-border flex-1">
+              <button id="ts-now" class="glass-soft px-3 py-1.5 rounded-lg text-xs accent-hover">Now</button>
+            </div>
+            <p id="ts-to-date" class="text-xs text-gray-300 mt-2 font-code"></p>
+          </div>
+          <div>
+            <span class="text-xs text-gray-500">Local date/time</span>
+            <input type="datetime-local" id="date-input" class="glass-soft px-3 py-1.5 rounded-lg text-xs font-code accent-border w-full mt-1">
+            <p id="date-to-ts" class="text-xs text-gray-300 mt-2 font-code"></p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Password -->
+      <div class="tool-pane hidden" id="pane-pass">
+        <div class="flex items-center gap-2 mb-3">
+          <input id="pass-out" readonly class="glass-soft px-3 py-2 rounded-lg text-sm font-code flex-1" value="">
+          <button class="copy-btn" data-copy="pass-out">Copy</button>
+        </div>
+        <div class="flex flex-wrap gap-4 items-center text-xs text-gray-400">
+          <label class="flex items-center gap-1">Length <input id="pass-len" type="number" min="6" max="64" value="16" class="glass-soft w-16 px-2 py-1 rounded-lg font-code accent-border"></label>
+          <label class="flex items-center gap-1"><input type="checkbox" id="pass-sym" checked> Symbols</label>
+          <label class="flex items-center gap-1"><input type="checkbox" id="pass-num" checked> Numbers</label>
+          <label class="flex items-center gap-1"><input type="checkbox" id="pass-upper" checked> Uppercase</label>
+          <button id="pass-gen" class="accent-bg text-gray-950 font-semibold px-3 py-1.5 rounded-lg">Generate</button>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="max-w-6xl mx-auto w-full text-center text-xs text-gray-600 pt-2">
+    Built for speed &amp; focus • local-only, nothing leaves your browser
+a UOBI TECH Project.
+  </footer>
+</div>
+
+<script>
+// Clock
+function updateClock(){ document.getElementById('live-clock').innerText = new Date().toLocaleTimeString(); }
+setInterval(updateClock,1000); updateClock();
+
+// Theme
+function setTheme(theme){
+  const body = document.getElementById('body-theme');
+  body.className = `theme-${theme}`;
+  try{ localStorage.setItem('devhub_theme', theme); }catch(e){}
+}
+try{ setTheme(localStorage.getItem('devhub_theme') || 'cyan'); }catch(e){ setTheme('cyan'); }
+
+// Search
+document.getElementById('search-form').addEventListener('submit', e=>{
+  e.preventDefault();
+  const q = document.getElementById('search-input').value.trim();
+  if(!q) return;
+  const url = (q.startsWith('http://')||q.startsWith('https://')) ? q : (q.includes('.') && !q.includes(' ') ? 'https://'+q : null);
+  window.open(url || `https://www.google.com/search?q=${encodeURIComponent(q)}`, '_blank');
+});
+
+// Scratchpad
+const scratchpad = document.getElementById('scratchpad');
+const saveStatus = document.getElementById('save-status');
+try{ const n = localStorage.getItem('devhub_notes'); if(n) scratchpad.value = n; }catch(e){}
+scratchpad.addEventListener('input', ()=>{
+  try{ localStorage.setItem('devhub_notes', scratchpad.value); }catch(e){}
+  saveStatus.innerText = 'Saved ✓';
+  setTimeout(()=> saveStatus.innerText='Auto-saved', 1500);
+});
+document.getElementById('clear-notes').addEventListener('click', ()=>{
+  if(confirm('Clear notes?')){ scratchpad.value=''; try{localStorage.removeItem('devhub_notes');}catch(e){} }
+});
+
+// Links
+const defaultLinks = [
+  {name:'GitHub', url:'https://github.com', icon:'🐙'},
+  {name:'StackOverflow', url:'https://stackoverflow.com', icon:'💬'},
+  {name:'MDN Docs', url:'https://developer.mozilla.org', icon:'📘'}
+];
+let customLinks;
+try{ customLinks = JSON.parse(localStorage.getItem('devhub_links')) || defaultLinks; }catch(e){ customLinks = defaultLinks; }
+
+function renderLinks(){
+  const grid = document.getElementById('links-grid');
+  grid.innerHTML = '';
+  customLinks.forEach(link=>{
+    const card = document.createElement('a');
+    card.href = link.url; card.target = '_blank';
+    card.className = 'glass-soft p-3 rounded-xl accent-hover transition-all flex flex-col items-center text-center group';
+    let domain=''; try{ domain = new URL(link.url).hostname; }catch(e){ domain = link.url; }
+    card.innerHTML = `<span class="text-xl mb-1 group-hover:scale-110 transition-transform">${link.icon||'🔗'}</span>
+      <span class="text-sm font-medium truncate w-full">${link.name}</span>
+      <span class="text-[10px] text-gray-500 truncate w-full">${domain}</span>`;
+    grid.appendChild(card);
+  });
+}
+document.getElementById('add-link-form').addEventListener('submit', e=>{
+  e.preventDefault();
+  const name = document.getElementById('link-name').value.trim();
+  const url = document.getElementById('link-url').value.trim();
+  if(name && url){
+    customLinks.push({name, url, icon:'🌐'});
+    try{ localStorage.setItem('devhub_links', JSON.stringify(customLinks)); }catch(e){}
+    renderLinks();
+    document.getElementById('link-name').value=''; document.getElementById('link-url').value='';
+  }
+});
+renderLinks();
+
+// GitHub repos
+document.getElementById('gh-form').addEventListener('submit', async e=>{
+  e.preventDefault();
+  const username = document.getElementById('gh-username').value.trim();
+  const grid = document.getElementById('gh-repos-grid');
+  if(!username) return;
+  grid.innerHTML = `<p class="text-xs text-gray-400 italic col-span-full">Fetching @${username}...</p>`;
+  try{
+    const res = await fetch(`https://api.github.com/users/${username}/repos?sort=updated&per_page=6`);
+    if(!res.ok) throw new Error('not found');
+    const repos = await res.json();
+    if(!repos.length){ grid.innerHTML = `<p class="text-xs text-yellow-500 col-span-full">No public repos found.</p>`; return; }
+    grid.innerHTML = '';
+    repos.forEach(r=>{
+      const c = document.createElement('a');
+      c.href = r.html_url; c.target='_blank';
+      c.className = 'glass-soft p-3 rounded-xl accent-hover transition-all flex flex-col justify-between';
+      c.innerHTML = `<div>
+        <div class="flex justify-between items-center mb-1">
+          <span class="font-semibold text-xs truncate font-code accent-text">${r.name}</span>
+          <span class="text-[10px] bg-white/5 px-1.5 py-0.5 rounded">⭐ ${r.stargazers_count}</span>
+        </div>
+        <p class="text-[11px] text-gray-400 line-clamp-2 mb-2">${r.description || 'No description.'}</p>
+      </div>
+      <div class="flex justify-between items-center text-[10px] text-gray-500 pt-2 border-t border-white/5">
+        <span>${r.language || 'Code'}</span><span>${new Date(r.updated_at).toLocaleDateString()}</span>
+      </div>`;
+      grid.appendChild(c);
+    });
+    try{ localStorage.setItem('devhub_gh_user', username); }catch(e){}
+  }catch(err){
+    grid.innerHTML = `<p class="text-xs text-red-400 col-span-full">Could not fetch repos. Check the username.</p>`;
+  }
+});
+try{ const last = localStorage.getItem('devhub_gh_user'); if(last) document.getElementById('gh-username').value = last; }catch(e){}
+
+// Tool tabs
+document.querySelectorAll('.tool-tab').forEach(tab=>{
+  tab.addEventListener('click', ()=>{
+    document.querySelectorAll('.tool-tab').forEach(t=>t.classList.remove('active'));
+    tab.classList.add('active');
+    document.querySelectorAll('.tool-pane').forEach(p=>p.classList.add('hidden'));
+    document.getElementById('pane-'+tab.dataset.tool).classList.remove('hidden');
+  });
+});
+
+// Copy buttons
+document.querySelectorAll('.copy-btn').forEach(btn=>{
+  btn.addEventListener('click', async ()=>{
+    const el = document.getElementById(btn.dataset.copy);
+    const text = el.value !== undefined ? el.value : el.innerText;
+    try{ await navigator.clipboard.writeText(text); const old=btn.innerText; btn.innerText='Copied'; setTimeout(()=>btn.innerText=old,1200); }catch(e){}
+  });
+});
+
+// JSON tool
+document.getElementById('json-format').addEventListener('click', ()=>{
+  const out = document.getElementById('json-out'), status = document.getElementById('json-status');
+  try{
+    const parsed = JSON.parse(document.getElementById('json-in').value);
+    out.innerText = JSON.stringify(parsed, null, 2);
+    status.innerText = 'Valid ✓'; status.className='text-xs text-emerald-400';
+  }catch(e){ out.innerText = ''; status.innerText = 'Invalid: '+e.message; status.className='text-xs text-red-400'; }
+});
+document.getElementById('json-minify').addEventListener('click', ()=>{
+  const out = document.getElementById('json-out'), status = document.getElementById('json-status');
+  try{
+    const parsed = JSON.parse(document.getElementById('json-in').value);
+    out.innerText = JSON.stringify(parsed);
+    status.innerText = 'Valid ✓'; status.className='text-xs text-emerald-400';
+  }catch(e){ out.innerText=''; status.innerText='Invalid: '+e.message; status.className='text-xs text-red-400'; }
+});
+
+// Base64 tool
+document.getElementById('b64-encode').addEventListener('click', ()=>{
+  const err = document.getElementById('b64-error'); err.innerText='';
+  try{ document.getElementById('b64-encoded').value = btoa(unescape(encodeURIComponent(document.getElementById('b64-plain').value))); }
+  catch(e){ err.innerText = 'Could not encode input.'; }
+});
+document.getElementById('b64-decode').addEventListener('click', ()=>{
+  const err = document.getElementById('b64-error'); err.innerText='';
+  try{ document.getElementById('b64-plain').value = decodeURIComponent(escape(atob(document.getElementById('b64-encoded').value.trim()))); }
+  catch(e){ err.innerText = 'Invalid Base64 string.'; }
+});
+
+// Color tool
+function hexToRgb(hex){
+  const v = hex.replace('#','');
+  const bigint = parseInt(v.length===3 ? v.split('').map(c=>c+c).join('') : v, 16);
+  return [(bigint>>16)&255, (bigint>>8)&255, bigint&255];
+}
+function rgbToHsl(r,g,b){
+  r/=255; g/=255; b/=255;
+  const max=Math.max(r,g,b), min=Math.min(r,g,b);
+  let h,s,l=(max+min)/2;
+  if(max===min){ h=s=0; }
+  else{
+    const d=max-min; s = l>0.5 ? d/(2-max-min) : d/(max+min);
+    switch(max){
+      case r: h=(g-b)/d+(g<b?6:0); break;
+      case g: h=(b-r)/d+2; break;
+      case b: h=(r-g)/d+4; break;
+    }
+    h/=6;
+  }
+  return [Math.round(h*360), Math.round(s*100), Math.round(l*100)];
+}
+function updateColor(hex){
+  const [r,g,b] = hexToRgb(hex);
+  const [h,s,l] = rgbToHsl(r,g,b);
+  document.getElementById('color-hex').value = hex;
+  document.getElementById('color-rgb').value = `rgb(${r}, ${g}, ${b})`;
+  document.getElementById('color-hsl').value = `hsl(${h}, ${s}%, ${l}%)`;
+  document.getElementById('color-picker').value = hex;
+}
+document.getElementById('color-picker').addEventListener('input', e=> updateColor(e.target.value));
+document.getElementById('color-hex').addEventListener('input', e=>{
+  if(/^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(e.target.value)) updateColor(e.target.value);
+});
+updateColor('#06b6d4');
+
+// Regex tool
+function runRegex(){
+  const pattern = document.getElementById('regex-pattern').value;
+  const flags = document.getElementById('regex-flags').value;
+  const text = document.getElementById('regex-text').value;
+  const out = document.getElementById('regex-out'), count = document.getElementById('regex-count');
+  if(!pattern){ out.innerHTML=''; count.innerText='0'; return; }
+  try{
+    const re = new RegExp(pattern, flags.includes('g')?flags:flags+'g');
+    const matches = [...text.matchAll(re)];
+    count.innerText = matches.length;
+    out.innerHTML = matches.length
+      ? matches.map(m=>`<div class="mb-1"><span class="accent-text">${m[0].replace(/</g,'&lt;')}</span> <span class="text-gray-500">@${m.index}</span></div>`).join('')
+      : '<span class="text-gray-500">No matches</span>';
+  }catch(e){ out.innerHTML = `<span class="text-red-400">${e.message}</span>`; count.innerText='0'; }
+}
+['regex-pattern','regex-flags','regex-text'].forEach(id=> document.getElementById(id).addEventListener('input', runRegex));
+
+// Timestamp tool
+function tsToDate(){
+  const v = document.getElementById('ts-input').value.trim();
+  const el = document.getElementById('ts-to-date');
+  if(!v || isNaN(v)){ el.innerText=''; return; }
+  el.innerText = new Date(parseInt(v)*1000).toString();
+}
+document.getElementById('ts-input').addEventListener('input', tsToDate);
+document.getElementById('ts-now').addEventListener('click', ()=>{
+  document.getElementById('ts-input').value = Math.floor(Date.now()/1000);
+  tsToDate();
+});
+document.getElementById('date-input').addEventListener('input', e=>{
+  const el = document.getElementById('date-to-ts');
+  const t = new Date(e.target.value).getTime();
+  el.innerText = isNaN(t) ? '' : Math.floor(t/1000);
+});
+
+// Password generator
+function genPassword(){
+  const len = Math.min(64, Math.max(6, parseInt(document.getElementById('pass-len').value)||16));
+  let chars = 'abcdefghijklmnopqrstuvwxyz';
+  if(document.getElementById('pass-upper').checked) chars += 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+  if(document.getElementById('pass-num').checked) chars += '0123456789';
+  if(document.getElementById('pass-sym').checked) chars += '!@#$%^&*()_+-=[]{}';
+  const arr = new Uint32Array(len);
+  crypto.getRandomValues(arr);
+  let pass = '';
+  for(let i=0;i<len;i++) pass += chars[arr[i]%chars.length];
+  document.getElementById('pass-out').value = pass;
+}
+document.getElementById('pass-gen').addEventListener('click', genPassword);
+genPassword();
+</script>
+</body>
+</html>
